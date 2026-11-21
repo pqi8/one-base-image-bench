@@ -1,0 +1,50 @@
+# Like-for-like fleet test: buildkite/agent's CI split with bk-compute's size assignment and concurrency.
+# Medium jobs: hosted-linux-arm64 (LINUX_ARM64_4X16), 2 at once. Small jobs: hosted-linux-arm64-small
+# (LINUX_ARM64_2X4), 1 at a time. Hosted machines have no swap. Step order matches agent-fleet.bk-compute.yml.
+env:
+  BENCH_PLATFORM: buildkite-hosted
+
+steps:
+  - label: ":go: Lint"
+    command: bash bench/agent-fleet.sh lint
+    agents: { queue: hosted-linux-arm64-small }
+    concurrency: 1
+    concurrency_group: obi-agent-lfl-small
+  - label: ":linux: Tests %n"
+    parallelism: 2
+    command: bash bench/agent-fleet.sh test $$BUILDKITE_PARALLEL_JOB $$BUILDKITE_PARALLEL_JOB_COUNT
+    agents: { queue: hosted-linux-arm64 }
+    concurrency: 2
+    concurrency_group: obi-agent-lfl-medium
+  - label: ":satellite: Races %n"
+    parallelism: 3
+    command: bash bench/agent-fleet.sh race $$BUILDKITE_PARALLEL_JOB $$BUILDKITE_PARALLEL_JOB_COUNT
+    agents: { queue: hosted-linux-arm64 }
+    concurrency: 2
+    concurrency_group: obi-agent-lfl-medium
+  - label: ":package: Build {{matrix.os}}/{{matrix.arch}}"
+    command: bash bench/agent-fleet.sh build {{matrix.os}} {{matrix.arch}}
+    agents: { queue: hosted-linux-arm64 }
+    concurrency: 2
+    concurrency_group: obi-agent-lfl-medium
+    matrix:
+      setup:
+        os: [linux, windows]
+        arch: [amd64, arm64]
+      adjustments:
+        - with: { os: windows, arch: arm64 }
+          skip: true
+        - with: { os: linux, arch: amd64 }
+          skip: true
+  - label: ":package: Build {{matrix.os}}/{{matrix.arch}}"
+    command: bash bench/agent-fleet.sh build {{matrix.os}} {{matrix.arch}}
+    agents: { queue: hosted-linux-arm64-small }
+    concurrency: 1
+    concurrency_group: obi-agent-lfl-small
+    matrix:
+      setup:
+        os: [linux, darwin]
+        arch: [amd64, arm64]
+      adjustments:
+        - with: { os: linux, arch: arm64 }
+          skip: true

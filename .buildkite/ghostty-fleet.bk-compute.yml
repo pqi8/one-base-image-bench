@@ -1,10 +1,16 @@
-# Fleet test: ghostty's build-libghostty-vt matrix, one job per target.
-# All jobs go to Patrick's Mac on local-macs: its 2 Medium and 1 Small VM share them.
+# Fleet test: ghostty's build-libghostty-vt matrix, one job per target, on Patrick's Mac:
+# 2 Medium VMs (local-macs-medium) and 1 Small VM (local-macs-small). Each size has its
+# own queue, so each target is assigned one: the Small VM gets the three it ran in
+# earlier shared-queue runs.
 env:
   BENCH_PLATFORM: bk-compute
 
 steps:
   - label: ":zap: libghostty-vt {{matrix}}"
     command: bash bench/ghostty-target.sh {{matrix}}
-    agents: { queue: local-macs, host: patricks-macbook-pro }
-    matrix: [aarch64-macos, x86_64-macos, aarch64-linux, x86_64-linux, x86_64-linux-musl, aarch64-freebsd, x86_64-freebsd, x86_64-windows-gnu, aarch64-windows-gnu]
+    agents: { queue: local-macs-medium, host: patricks-macbook-pro }
+    matrix: [x86_64-macos, aarch64-linux, x86_64-linux, x86_64-linux-musl, x86_64-freebsd, x86_64-windows-gnu]
+  - label: ":zap: libghostty-vt {{matrix}}"
+    command: bash bench/ghostty-target.sh {{matrix}}
+    agents: { queue: local-macs-small, host: patricks-macbook-pro }
+    matrix: [aarch64-macos, aarch64-freebsd, aarch64-windows-gnu]

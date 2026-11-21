@@ -60,7 +60,39 @@ machine_info() {
   echo "BENCH_INFO|arch|$(uname -m)"
   echo "BENCH_INFO|os|$(. /etc/os-release && echo "$PRETTY_NAME")"
   echo "BENCH_INFO|cache_bytes_at_start|$(du -sb "$BENCH_CACHE_DIR" 2>/dev/null | cut -f1)"
+  # The shape the job actually got. For an emulated Small (bench/emulate-small.sh), MemTotal
+  # still reports the whole VM, so effective memory subtracts the reserved hugepages.
+  echo "BENCH_INFO|cpus_online|$(cat /sys/devices/system/cpu/online 2>/dev/null)"
+  echo "BENCH_INFO|cpu_model|$(lscpu 2>/dev/null | awk -F: '/Model name/ {gsub(/^ +/, "", $2); print $2; exit}')"
+  echo "BENCH_INFO|hugetlb_kb|$(awk '/^Hugetlb:/ {print $2}' /proc/meminfo)"
+  echo "BENCH_INFO|effective_mem_kb|$(awk '/^MemTotal:/ {t=$2} /^Hugetlb:/ {h=$2} END {print t - h}' /proc/meminfo)"
+  echo "BENCH_INFO|mem_available_kb_at_start|$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)"
+  echo "BENCH_INFO|thp|$(cat /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null)"
+  echo "BENCH_INFO|oom_kill_at_start|$(awk '/^oom_kill / {print $2}' /proc/vmstat)"
+  echo "BENCH_INFO|pswpout_at_start|$(awk '/^pswpout / {print $2}' /proc/vmstat)"
   } | tee -a "$BENCH_RESULTS"
+}
+
+# retry_rate_limited <command...>: runs the command up to 3 times, retrying only when it failed
+# with a registry rate-limit error (HTTP 429). Each retry prints BENCH_RETRY|<attempt>; the
+# backoff counts in the section's time. Any other failure returns at once.
+retry_rate_limited() {
+  local attempt out status
+  set +e  # run_section's subshell has set -e and pipefail; this function reads each status itself
+  for attempt in 1 2 3; do
+    out="$(mktemp)"
+    "$@" 2>&1 | tee "$out"
+    status=${PIPESTATUS[0]}
+    if [ "$status" -eq 0 ]; then rm -f "$out"; return 0; fi
+    if [ "$attempt" -lt 3 ] && grep -q -E 'toomanyrequests|429 Too Many Requests' "$out"; then
+      rm -f "$out"
+      echo "BENCH_RETRY|$attempt" | tee -a "$BENCH_RESULTS"
+      sleep $(( attempt == 1 ? 30 : 90 ))
+      continue
+    fi
+    rm -f "$out"
+    return "$status"
+  done
 }
 
 # clone_at <url> <sha> <dir> [sparse patterns...]: shallow fetch of one commit.
@@ -95,7 +127,11 @@ artifact_cache_save() {
 }
 
 finish() {
-  echo "BENCH_INFO|cache_bytes_at_end|$($SUDO du -sb "$BENCH_CACHE_DIR" 2>/dev/null | cut -f1)" | tee -a "$BENCH_RESULTS"
+  {
+  echo "BENCH_INFO|cache_bytes_at_end|$($SUDO du -sb "$BENCH_CACHE_DIR" 2>/dev/null | cut -f1)"
+  echo "BENCH_INFO|oom_kill_at_end|$(awk '/^oom_kill / {print $2}' /proc/vmstat)"
+  echo "BENCH_INFO|pswpout_at_end|$(awk '/^pswpout / {print $2}' /proc/vmstat)"
+  } | tee -a "$BENCH_RESULTS"
   # Build meta-data carries the results to readers with only read_builds (no log access).
   if [ -n "${BUILDKITE_JOB_ID:-}" ]; then
     buildkite-agent meta-data set "${BENCH_META_KEY:-bench-results}" < "$BENCH_RESULTS" || true

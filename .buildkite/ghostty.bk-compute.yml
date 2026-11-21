@@ -1,4 +1,4 @@
-# libghostty Linux build + lib-vt tests on bk-compute: one Medium VM (4 vCPU, 16 GB) from the local-macs queue,
+# libghostty Linux build + lib-vt tests on bk-compute: one Medium VM (4 vCPU, 16 GB) from the local-macs-medium queue,
 # pinned to Patrick's Mac. bk-compute has no job cache, so a warm run restores
 # .bench-cache from an earlier build's Buildkite artifact (BENCH_CACHE_BUILD).
 env:
@@ -9,7 +9,7 @@ steps:
   - label: ":zap: libghostty Linux build + lib-vt tests"
     command: bash bench/ghostty.sh
     agents:
-      queue: local-macs
+      queue: local-macs-medium
       size: medium
       host: patricks-macbook-pro
     artifact_paths: ["artifacts/**/*"]

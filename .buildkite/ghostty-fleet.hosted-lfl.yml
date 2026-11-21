@@ -1,0 +1,19 @@
+# Like-for-like fleet test: ghostty's build-libghostty-vt matrix with bk-compute's size assignment and concurrency.
+# Medium targets: hosted-linux-arm64 (LINUX_ARM64_4X16), 2 at once. Small targets: hosted-linux-arm64-small
+# (LINUX_ARM64_2X4), 1 at a time. Hosted machines have no swap. Step order matches ghostty-fleet.bk-compute.yml.
+env:
+  BENCH_PLATFORM: buildkite-hosted
+
+steps:
+  - label: ":zap: libghostty-vt {{matrix}}"
+    command: bash bench/ghostty-target.sh {{matrix}}
+    agents: { queue: hosted-linux-arm64 }
+    concurrency: 2
+    concurrency_group: obi-ghostty-lfl-medium
+    matrix: [x86_64-macos, aarch64-linux, x86_64-linux, x86_64-linux-musl, x86_64-freebsd, x86_64-windows-gnu]
+  - label: ":zap: libghostty-vt {{matrix}}"
+    command: bash bench/ghostty-target.sh {{matrix}}
+    agents: { queue: hosted-linux-arm64-small }
+    concurrency: 1
+    concurrency_group: obi-ghostty-lfl-small
+    matrix: [aarch64-macos, aarch64-freebsd, aarch64-windows-gnu]

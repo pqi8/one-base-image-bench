@@ -17,7 +17,7 @@ import urllib.request
 from datetime import datetime
 
 ORG = "pqi-eval-plan"
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results.jsonl")
+OUT = os.environ.get("BENCH_RESULTS_FILE") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "results.jsonl")
 LINE = re.compile(r"BENCH\|([^|]+)\|([0-9.]+)\|(-?\d+)")
 INFO = re.compile(r"BENCH_INFO\|([^|]+)\|(.*)$")
 

@@ -14,7 +14,7 @@ import sys
 import urllib.request
 from datetime import datetime
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fleet-results.jsonl")
+OUT = os.environ.get("BENCH_FLEET_RESULTS_FILE") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "fleet-results.jsonl")
 
 
 def ts(v):

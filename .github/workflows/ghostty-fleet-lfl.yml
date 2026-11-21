@@ -1,0 +1,40 @@
+# Like-for-like fleet test: ghostty's build-libghostty-vt matrix with bk-compute's size assignment and concurrency.
+# medium: 6 targets, 2 at once, each on ubuntu-24.04-arm (4 vCPU, 16 GB in a public repo).
+# small: 3 targets, 1 at a time, each on ubuntu-24.04-arm restricted to 2 vCPU and the bk-compute
+# Small VM's memory by bench/emulate-small.sh (GitHub has no 2 vCPU arm64 runner for public repos).
+# Job order within each lane matches .buildkite/ghostty-fleet.bk-compute.yml.
+name: ghostty-fleet-lfl
+
+on:
+  workflow_dispatch:
+
+env:
+  BENCH_PLATFORM: github-actions
+
+jobs:
+  medium:
+    name: medium ${{ matrix.target }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        target: [x86_64-macos, aarch64-linux, x86_64-linux, x86_64-linux-musl, x86_64-freebsd, x86_64-windows-gnu]
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash bench/ghostty-target.sh ${{ matrix.target }}
+  small:
+    name: small ${{ matrix.target }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        target: [aarch64-macos, aarch64-freebsd, aarch64-windows-gnu]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restrict to the Small budget (2 vCPU, ~4 GB)
+        run: sudo bash bench/emulate-small.sh
+      - run: bash bench/ghostty-target.sh ${{ matrix.target }}

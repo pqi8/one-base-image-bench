@@ -1,4 +1,4 @@
-# T3 Code build and typecheck on bk-compute: one Medium VM (4 vCPU, 16 GB) from the local-macs queue,
+# T3 Code build and typecheck on bk-compute: one Medium VM (4 vCPU, 16 GB) from the local-macs-medium queue,
 # pinned to Patrick's Mac. bk-compute has no job cache, so a warm run restores
 # .bench-cache from an earlier build's Buildkite artifact (BENCH_CACHE_BUILD).
 env:
@@ -9,7 +9,7 @@ steps:
   - label: ":electron: T3 Code build and typecheck"
     command: bash bench/t3code.sh
     agents:
-      queue: local-macs
+      queue: local-macs-medium
       size: medium
       host: patricks-macbook-pro
     artifact_paths: ["artifacts/**/*"]

@@ -17,9 +17,15 @@ run_section "checkout" clone_at https://github.com/buildkite/agent.git "$AGENT_S
 cd src
 compose() { docker compose -f .buildkite/docker-compose.yml "$@"; }
 
+# A failed image build ends the job: a later `compose run` would build (and pull) again on its own.
+image() {
+  run_section "docker image" retry_rate_limited compose build "$1"
+  if [ -n "$BENCH_FAILED" ]; then cd "$BENCH_ROOT"; finish; fi
+}
+
 case "$mode" in
   lint)
-    run_section "docker image" compose build lint
+    image lint
     run_section "lint" compose run --rm lint sh -euc '
       git config --global --add safe.directory /work
       go mod tidy && git diff --no-ext-diff --exit-code
@@ -30,7 +36,7 @@ case "$mode" in
   test|race)
     shard="$1" shards="$2"
     race=""; [ "$mode" = race ] && race="-race"
-    run_section "docker image" compose build agent
+    image agent
     run_section "go test $mode $shard/$shards" compose run --rm -e SHARD="$shard" -e SHARDS="$shards" -e RACE_FLAG="$race" agent bash -euo pipefail -c '
       git config --global --add safe.directory /work
       packages="$(go list ./... | awk -v n="$SHARDS" -v i="$SHARD" "NR % n == i")"
@@ -38,7 +44,7 @@ case "$mode" in
     ;;
   build)
     os="$1" arch="$2"
-    run_section "docker image" compose build agent
+    image agent
     run_section "build $os/$arch" compose run --rm -e BUILDKITE_BUILD_NUMBER=1 agent bash -euo pipefail -c "
       git config --global --add safe.directory /work
       ./scripts/build-binary.sh $os $arch 1 && ls -l pkg"

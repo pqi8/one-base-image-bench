@@ -1,0 +1,51 @@
+# Like-for-like fleet test: buildkite/agent's CI split with bk-compute's size assignment and concurrency.
+# medium: 7 jobs, 2 at once, each on ubuntu-24.04-arm (4 vCPU, 16 GB in a public repo).
+# small: 4 jobs, 1 at a time, each on ubuntu-24.04-arm restricted to 2 vCPU and the bk-compute
+# Small VM's memory by bench/emulate-small.sh (GitHub has no 2 vCPU arm64 runner for public repos).
+# Job order within each lane matches .buildkite/agent-fleet.bk-compute.yml.
+name: agent-fleet-lfl
+
+on:
+  workflow_dispatch:
+
+env:
+  BENCH_PLATFORM: github-actions
+
+jobs:
+  medium:
+    name: medium ${{ matrix.name }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - { name: tests 0, args: test 0 2 }
+          - { name: tests 1, args: test 1 2 }
+          - { name: races 0, args: race 0 3 }
+          - { name: races 1, args: race 1 3 }
+          - { name: races 2, args: race 2 3 }
+          - { name: build linux/arm64, args: build linux arm64 }
+          - { name: build windows/amd64, args: build windows amd64 }
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash bench/agent-fleet.sh ${{ matrix.args }}
+  small:
+    name: small ${{ matrix.name }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - { name: lint, args: lint }
+          - { name: build linux/amd64, args: build linux amd64 }
+          - { name: build darwin/amd64, args: build darwin amd64 }
+          - { name: build darwin/arm64, args: build darwin arm64 }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restrict to the Small budget (2 vCPU, ~4 GB)
+        run: sudo bash bench/emulate-small.sh
+      - run: bash bench/agent-fleet.sh ${{ matrix.args }}
