@@ -71,7 +71,10 @@ launch_diagnostics() {
   timeout 20 xvfb-run -a "$electron" --no-sandbox --enable-logging=stderr apps/desktop 2>&1 | tail -60 || true
   $SUDO dmesg 2>/dev/null | tail -20 || true
 }
-case "$BENCH_FAILED" in *"desktop launch"*) run_section "desktop launch diagnostics" launch_diagnostics ;; esac
+case "$BENCH_FAILED" in *"desktop launch"*)
+  run_section "desktop launch diagnostics" launch_diagnostics
+  [ -n "${BUILDKITE_JOB_ID:-}" ] && tail -c 60000 "$BENCH_ROOT/section-logs/desktop-launch-diagnostics.log" | buildkite-agent meta-data set bench-diagnostics || true
+  ;; esac
 
 chromium() {
   local browser
