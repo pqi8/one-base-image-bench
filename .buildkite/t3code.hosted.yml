@@ -1,0 +1,25 @@
+# T3 Code build and typecheck on Buildkite hosted agents, Linux arm64, 4 vCPU / 16 GB.
+# Warm runs attach a cache volume holding .bench-cache; cold runs attach none.
+env:
+  BENCH_PLATFORM: buildkite-hosted
+
+steps:
+  - label: ":electron: T3 Code build and typecheck (cold)"
+    if: build.env("BENCH_CACHE") != "warm"
+    command: bash bench/t3code.sh
+    agents:
+      queue: HOSTED_QUEUE
+    artifact_paths: ["artifacts/**/*"]
+    timeout_in_minutes: 45
+
+  - label: ":electron: T3 Code build and typecheck (warm)"
+    if: build.env("BENCH_CACHE") == "warm"
+    command: bash bench/t3code.sh
+    agents:
+      queue: HOSTED_QUEUE
+    cache:
+      name: bench-t3code
+      paths: [".bench-cache"]
+      size: 20g
+    artifact_paths: ["artifacts/**/*"]
+    timeout_in_minutes: 45

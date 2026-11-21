@@ -1,0 +1,44 @@
+# libghostty Linux build + lib-vt tests on GitHub's hosted arm64 runner (ubuntu-24.04-arm: 4 vCPU, 16 GB for public repos).
+# Warm runs restore .bench-cache with actions/cache; a seed run saves it.
+name: ghostty
+
+on:
+  workflow_dispatch:
+    inputs:
+      cache:
+        description: cold or warm
+        default: cold
+      save_cache:
+        description: save .bench-cache after the run (seed run)
+        default: "false"
+
+jobs:
+  bench:
+    name: "libghostty Linux build + lib-vt tests (${{ inputs.cache }})"
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    env:
+      BENCH_PLATFORM: github-actions
+      BENCH_CACHE: ${{ inputs.cache }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore .bench-cache
+        if: inputs.cache == 'warm'
+        uses: actions/cache/restore@v4
+        with:
+          path: .bench-cache
+          key: bench-ghostty-v1
+      - name: Bench
+        run: bash bench/ghostty.sh
+      - name: Save .bench-cache
+        if: always() && inputs.save_cache == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .bench-cache
+          key: bench-ghostty-v1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: artifacts
+          path: artifacts
+          if-no-files-found: ignore
