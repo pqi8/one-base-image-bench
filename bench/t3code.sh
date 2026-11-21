@@ -24,6 +24,12 @@ machine_info
 apt_deps() {
   $SUDO apt-get update -qq -o Acquire::Languages=none
   DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y -qq --no-install-recommends libsecret-1-dev pkg-config xvfb xauth
+  # Electron's runtime libraries. GitHub's runner image ships them; the bk-compute and
+  # Buildkite hosted images don't, and without them the binary can't load (libnspr4.so).
+  DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y -qq --no-install-recommends \
+    libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 libatspi2.0-0t64 libcups2t64 libcairo2 \
+    libgtk-3-0t64 libpango-1.0-0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxkbcommon0 \
+    libgbm1 libasound2t64 libdrm2
 }
 setup_vp() {
   if [ ! -x "$VP_HOME/bin/vp" ]; then
