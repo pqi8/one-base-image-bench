@@ -33,6 +33,8 @@ run_section() {
   # A failed section's output tail goes to build meta-data too, for readers without log access.
   if [ "$status" -ne 0 ] && [ -n "${BUILDKITE_JOB_ID:-}" ]; then
     tail -c 60000 "$log" | buildkite-agent meta-data set "bench-fail-${name// /-}" || true
+    grep -n -i -E -B2 -A8 'error|fatal|killed|out of memory|signal' "$log" | grep -v '(warn)' | tail -c 60000 |
+      buildkite-agent meta-data set "bench-errors-${name// /-}" || true
   fi
   end=$(now)
   awk -v n="$name" -v s="$start" -v e="$end" -v c="$status" 'BEGIN { printf "BENCH|%s|%.1f|%d\n", n, e - s, c }' | tee -a "$BENCH_RESULTS"
