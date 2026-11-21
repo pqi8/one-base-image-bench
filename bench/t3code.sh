@@ -50,7 +50,7 @@ run_section "verify preload" node apps/desktop/scripts/verify-preload-bundle.mjs
 desktop_launch() {
   local electron
   electron=$(node -p "require('./apps/desktop/node_modules/electron')")
-  file -L "$electron"
+  ls -lL "$electron"; command -v xvfb-run
   timeout 240 xvfb-run -a node scripts/smoke-desktop-app.ts --executable "$electron" --app apps/desktop \
     --artifacts-dir "$ARTIFACTS/desktop-launch-check"
 }
