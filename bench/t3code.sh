@@ -56,6 +56,23 @@ desktop_launch() {
 }
 run_section "desktop launch" desktop_launch
 
+# Only when the launch fails: start Electron directly and record why. Not part of the timing.
+launch_diagnostics() {
+  local electron
+  electron=$(node -p "require('./apps/desktop/node_modules/electron')")
+  echo "id: $(id)"; echo "page size: $(getconf PAGESIZE)"
+  sysctl kernel.unprivileged_userns_clone kernel.apparmor_restrict_unprivileged_userns user.max_user_namespaces 2>&1 || true
+  ls -l "$(dirname "$electron")/chrome-sandbox" || true
+  echo "missing libraries:"; ldd "$electron" | grep 'not found' || echo none
+  echo "--- electron --version"; timeout 30 "$electron" --version 2>&1 || echo "exit $?"
+  echo "--- electron under xvfb, 20 s"
+  timeout 20 xvfb-run -a "$electron" --enable-logging=stderr --v=0 apps/desktop 2>&1 | tail -60 || true
+  echo "--- same with --no-sandbox"
+  timeout 20 xvfb-run -a "$electron" --no-sandbox --enable-logging=stderr apps/desktop 2>&1 | tail -60 || true
+  $SUDO dmesg 2>/dev/null | tail -20 || true
+}
+case "$BENCH_FAILED" in *"desktop launch"*) run_section "desktop launch diagnostics" launch_diagnostics ;; esac
+
 chromium() {
   local browser
   if ! find "$PLAYWRIGHT_BROWSERS_PATH" -name chrome-headless-shell -type f 2>/dev/null | grep -q .; then
