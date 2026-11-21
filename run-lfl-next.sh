@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# run-lfl-next.sh <out dir>: runs one build: the next step of <out dir>/plan.txt that isn't done.
+# run-lfl-next.sh <out dir> [platform]: runs one build: the next step of <out dir>/plan.txt that isn't done,
+# only for that platform if one is given. Platforms share no machines, so one loop per platform can run
+# at the same time; each platform keeps its own pending file.
 # plan.txt lines: <platform> <project> <variant> <step>
 #   platform: bk-compute | hosted | gha     variant: lfl | lfl-s4 (hosted only) | uncapped
 #
@@ -17,7 +19,8 @@
 # new runner-log lines to <out dir>/runner-log/ and counts "drain" / "no heartbeat" lines.
 set -uo pipefail
 cd "$(dirname "$0")"
-out="$1"
+out="$1" only="${2:-}"
+pending="$out/pending${only:+-$only}"
 export BUILDKITE_API_TOKEN="${BUILDKITE_API_TOKEN:-$(cat ~/.config/bk-bench/pqi-eval-plan-token)}"
 export BENCH_FLEET_RESULTS_FILE="$out/fleet-results.jsonl" BENCH_MAC_LOAD="$out/mac-load.tsv"
 API=https://api.buildkite.com/v2/organizations/pqi-eval-plan
@@ -58,20 +61,20 @@ collect() {  # <platform> <project> <variant> <step> <label> <build ref> <runner
   if [ "$platform" = gha ]; then result=$(python3 collect_lfl.py gha "$ref" "$variant" "$label")
   else result=$(python3 collect_lfl.py bk "${ref%#*}" "${ref#*#}" "$variant" "$label"); fi || {
     log "collect failed for $ref; pending kept"; exit 1; }
-  rm -f "$out/pending"
+  rm -f "$pending"
   log "$result"
   echo "$result${BENCH_RUNNER_BAD:+ runner-log-bad-lines=$BENCH_RUNNER_BAD}"
 }
 
 # A build triggered by an earlier call that wasn't collected comes first.
-if [ -s "$out/pending" ]; then
-  read -r platform project variant step label ref from < "$out/pending"
+if [ -s "$pending" ]; then
+  read -r platform project variant step label ref from < "$pending"
   log "collecting pending $ref"
   collect "$platform" "$project" "$variant" "$step" "$label" "$ref" "$from"
   exit 0
 fi
 
-next=$(python3 - "$out/plan.txt" "$BENCH_FLEET_RESULTS_FILE" <<'PY'
+next=$(python3 - "$out/plan.txt" "$BENCH_FLEET_RESULTS_FILE" "$only" <<'PY'
 import json, sys
 names = {"bk-compute": "bk-compute", "hosted": "buildkite-hosted", "gha": "github-actions"}
 recs = [json.loads(l) for l in open(sys.argv[2]) if l.strip()]
@@ -80,6 +83,8 @@ for line in open(sys.argv[1]):
     if len(f) != 4 or line.startswith("#"):
         continue
     plat, project, variant, step = f
+    if sys.argv[3] and plat != sys.argv[3]:
+        continue
     tries = [r for r in recs if (r["platform"], r["project"], r["variant"], r.get("step", r["label"])) == (names[plat], project, variant, step)]
     # A shakedown checks the setup: one that ran with the declared shapes is done even if jobs failed
     # (a failure is a platform result); an excluded one stops the driver for review.
@@ -143,6 +148,6 @@ case "$platform" in
     until [ -n "$ref" ] && [ "$ref" != "$before" ]; do sleep 5; ref=$(gh run list --repo "$GH_REPO" --workflow "$wf" --limit 1 --json databaseId -q '.[0].databaseId'); done
     ;;
 esac
-echo "$platform $project $variant $step $label $ref $from" > "$out/pending"
+echo "$platform $project $variant $step $label $ref $from" > "$pending"
 log "triggered $ref"
 collect "$platform" "$project" "$variant" "$step" "$label" "$ref" "$from"
