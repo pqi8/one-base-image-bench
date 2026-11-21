@@ -1,0 +1,13 @@
+# Fleet test: ghostty's build-libghostty-vt matrix, one job per target.
+# Capped variant: at most 3 jobs run at once, each on a hosted Linux arm64 machine (4 vCPU, 16 GB),
+# to match the 3 VMs Patrick's Mac runs (2 Medium, 1 Small).
+env:
+  BENCH_PLATFORM: buildkite-hosted
+
+steps:
+  - label: ":zap: libghostty-vt {{matrix}}"
+    command: bash bench/ghostty-target.sh {{matrix}}
+    agents: { queue: hosted-linux-arm64 }
+    concurrency: 3
+    concurrency_group: obi-ghostty-fleet-capped
+    matrix: [aarch64-macos, x86_64-macos, aarch64-linux, x86_64-linux, x86_64-linux-musl, aarch64-freebsd, x86_64-freebsd, x86_64-windows-gnu, aarch64-windows-gnu]
