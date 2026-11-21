@@ -77,7 +77,8 @@ def main():
             gaps = [g for r in ok for l in r["lanes"].values() for g in l["handoff_gaps"]]
             gap = f"{statistics.median(gaps):.0f} / {max(gaps):.0f}" if gaps else "–"
             first = [min(d for l in r["lanes"].values() for d in l["start_delays"]) for r in ok]
-            fails = [f"{r['label']}: {', '.join(r['failed_jobs'])}" + (" (suspected OOM)" if r["suspected_oom"] else "")
+            fails = [f"{r['label']}: {', '.join(r['failed_jobs'])}"
+                     + (" (suspected OOM)" if r["suspected_oom"] else " (cause unknown)" if r.get("cause_unknown") else "")
                      for r in rs if r["failed_jobs"]]
             if platform == "github-actions":
                 c = f"$0 (hypothetical ${statistics.median(cost(r) for r in ok):.2f})" if ok else "$0"
@@ -95,6 +96,15 @@ def main():
             print(f"bk-compute: median non-VM CPU on the Mac during the builds was {statistics.median(mac):.0f}% "
                   f"(range {min(mac)}–{max(mac)}%; 100% is one core). Its first start is short because the three VMs "
                   f"were booted and idle before each build; GitHub and hosted provision machines on demand.\n")
+        emu = [sum(j["sections"].get("emulate small", {}).get("s", 0) for j in r["jobs"])
+               for r in cells[(project, "github-actions", "lfl")] if r["valid"]]
+        if emu:
+            print(f"GitHub like-for-like: the Small emulation step (bench/emulate-small.sh) took a median "
+                  f"{statistics.median(emu):.0f} s per build in total across the serial Small lane; it is included "
+                  f"in GitHub's wall clock, job time and Small lane finish.\n")
+        bad = [r["runner_log_bad_lines"] for r in cells[(project, "bk-compute", "lfl")] if r.get("runner_log_bad_lines") is not None]
+        if bad:
+            print(f"bk-compute runner log: {sum(bad)} drain / no-heartbeat lines across {len(bad)} builds.\n")
         hosted = [cost(r) for r in cells[(project, "buildkite-hosted", "lfl")] if r["valid"]]
         if hosted:
             per_day = MAC_PRICE / (3 * 365)
@@ -111,6 +121,7 @@ def main():
         print("Left out of the tables:\n")
         for r in ex:
             why = "; ".join(r.get("excluded") or []) or "shakedown"
+            why += f"; build {r['state']}" + (f", failed: {', '.join(r['failed_jobs'])}" if r["failed_jobs"] else "")
             print(f"- {r['platform']} {r['project']} {r['variant']} {r['label']}: {why} ({r['url']})")
 
 

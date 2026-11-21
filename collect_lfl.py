@@ -200,6 +200,10 @@ def setup_problems(platform, variant, jobs, lanes):
             continue
         want_cpu, lo, hi = SHAPES[j["lane"]]
         mem = int(info["effective_mem_kb"]) if info.get("effective_mem_kb", "").isdigit() else None
+        # A job that failed before printing its shape (machine lost at start, say) stays a failure:
+        # it is a platform result, not a setup problem. A passed job must prove its shape.
+        if "vcpus" not in info and j["state"] not in ("passed", "success"):
+            continue
         if info.get("vcpus") != want_cpu or mem is None or not lo <= mem <= hi:
             out.append(f"{j['name']}: shape vcpus={info.get('vcpus')} mem_kb={mem}, want {want_cpu} vCPU in {lo}-{hi} kB")
     if variant == "lfl":
@@ -226,6 +230,12 @@ def mac_load(start, end):
             "non_vm_cpu_max": vals[-1] if vals else None}
 
 
+def already_recorded(url):
+    if not os.path.exists(OUT):
+        return False
+    return any(json.loads(l).get("url") == url for l in open(OUT) if l.strip())
+
+
 def main():
     kind = sys.argv[1]
     if kind == "bk":
@@ -240,6 +250,9 @@ def main():
         name = json.loads(gh("api", f"repos/{REPO}/actions/runs/{run_id}"))["name"]
         project = "agent" if name.startswith("agent") else "ghostty"
 
+    if already_recorded(url):
+        print(f"{platform} {project} {variant} {label} already recorded: {url}")
+        return
     ends = [j["finished"] for j in jobs if j["finished"]]
     end = max(ends) if ends else (finished or created)
     if platform == "github-actions":
@@ -258,8 +271,8 @@ def main():
         excluded.append("invalid setup: " + "; ".join(setup[:5]))
     mac = mac_load(created, end) if platform == "bk-compute" else None
     if mac is not None:
-        if not mac["samples"]:
-            excluded.append("no Mac load samples")
+        if mac["samples"] < max(1, (secs(created, end) or 0) / 30 / 2):
+            excluded.append(f"too few Mac load samples ({mac['samples']})")
         elif mac["non_vm_cpu_median"] > MAC_CPU_LIMIT:
             excluded.append(f"Mac contended: median non-VM CPU {mac['non_vm_cpu_median']:.0f}%")
     valid = (state in ("passed", "success") and len(jobs) == EXPECTED[project] and len(passed) == len(jobs)
