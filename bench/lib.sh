@@ -11,6 +11,8 @@ BENCH_ROOT="$(pwd)"
 export BENCH_CACHE_DIR="$BENCH_ROOT/.bench-cache"
 mkdir -p "$BENCH_CACHE_DIR"
 BENCH_FAILED=""
+BENCH_RESULTS="$BENCH_ROOT/bench-results.txt"
+: > "$BENCH_RESULTS"
 
 # A job is root in its VM or container on every platform here; sudo only where needed.
 if [ "$(id -u)" -eq 0 ]; then SUDO=""; else SUDO="sudo -n"; fi
@@ -27,7 +29,7 @@ run_section() {
   ( set -e; "$@" )
   status=$?
   end=$(now)
-  awk -v n="$name" -v s="$start" -v e="$end" -v c="$status" 'BEGIN { printf "BENCH|%s|%.1f|%d\n", n, e - s, c }'
+  awk -v n="$name" -v s="$start" -v e="$end" -v c="$status" 'BEGIN { printf "BENCH|%s|%.1f|%d\n", n, e - s, c }' | tee -a "$BENCH_RESULTS"
   if [ "$status" -ne 0 ]; then
     echo "^^^ +++"
     echo "Section '$name' failed with exit status $status"
@@ -38,6 +40,7 @@ run_section() {
 
 # Prints the machine this job ran on, so every result records its shape.
 machine_info() {
+  {
   echo "BENCH_INFO|platform|${BENCH_PLATFORM:-unknown}"
   echo "BENCH_INFO|cache_mode|${BENCH_CACHE:-cold}"
   echo "BENCH_INFO|kernel|$(uname -r)"
@@ -47,6 +50,7 @@ machine_info() {
   echo "BENCH_INFO|arch|$(uname -m)"
   echo "BENCH_INFO|os|$(. /etc/os-release && echo "$PRETTY_NAME")"
   echo "BENCH_INFO|cache_bytes_at_start|$(du -sb "$BENCH_CACHE_DIR" 2>/dev/null | cut -f1)"
+  } | tee -a "$BENCH_RESULTS"
 }
 
 # clone_at <url> <sha> <dir> [sparse patterns...]: shallow fetch of one commit.
@@ -81,7 +85,11 @@ artifact_cache_save() {
 }
 
 finish() {
-  echo "BENCH_INFO|cache_bytes_at_end|$($SUDO du -sb "$BENCH_CACHE_DIR" 2>/dev/null | cut -f1)"
+  echo "BENCH_INFO|cache_bytes_at_end|$($SUDO du -sb "$BENCH_CACHE_DIR" 2>/dev/null | cut -f1)" | tee -a "$BENCH_RESULTS"
+  # Build meta-data carries the results to readers with only read_builds (no log access).
+  if [ -n "${BUILDKITE_JOB_ID:-}" ]; then
+    buildkite-agent meta-data set bench-results < "$BENCH_RESULTS" || true
+  fi
   if [ -n "$BENCH_FAILED" ]; then
     echo "Failed sections:$BENCH_FAILED"
     exit 1
