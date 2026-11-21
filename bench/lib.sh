@@ -26,8 +26,14 @@ run_section() {
   echo "--- :stopwatch: $name"
   local start end status
   start=$(now)
-  ( set -e; "$@" )
-  status=$?
+  mkdir -p "$BENCH_ROOT/section-logs"
+  local log="$BENCH_ROOT/section-logs/${name// /-}.log"
+  ( set -e; "$@" ) 2>&1 | tee "$log"
+  status=${PIPESTATUS[0]}
+  # A failed section's output tail goes to build meta-data too, for readers without log access.
+  if [ "$status" -ne 0 ] && [ -n "${BUILDKITE_JOB_ID:-}" ]; then
+    tail -c 60000 "$log" | buildkite-agent meta-data set "bench-fail-${name// /-}" || true
+  fi
   end=$(now)
   awk -v n="$name" -v s="$start" -v e="$end" -v c="$status" 'BEGIN { printf "BENCH|%s|%.1f|%d\n", n, e - s, c }' | tee -a "$BENCH_RESULTS"
   if [ "$status" -ne 0 ]; then
