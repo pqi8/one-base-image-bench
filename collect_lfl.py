@@ -85,6 +85,8 @@ def parse_log(text):
 def bk_lane(job, variant):
     if variant == "uncapped":
         return "uncapped"
+    if (job.get("step_key") or "").startswith(("small", "medium")):  # lfl-s4: both lanes on 4x16
+        return job["step_key"].split("-")[0]
     rules = " ".join(job.get("agent_query_rules") or [])
     return "small" if "-small" in rules else "medium"
 
@@ -198,7 +200,7 @@ def setup_problems(platform, variant, jobs, lanes):
         if j["lane"] not in SHAPES:
             out.append(f"{j['name']}: no lane (expected a name starting with small or medium)")
             continue
-        want_cpu, lo, hi = SHAPES[j["lane"]]
+        want_cpu, lo, hi = SHAPES["medium" if variant == "lfl-s4" else j["lane"]]
         mem = int(info["effective_mem_kb"]) if info.get("effective_mem_kb", "").isdigit() else None
         # A job that failed before printing its shape (machine lost at start, say) stays a failure:
         # it is a platform result, not a setup problem. A passed job must prove its shape.
@@ -206,7 +208,7 @@ def setup_problems(platform, variant, jobs, lanes):
             continue
         if info.get("vcpus") != want_cpu or mem is None or not lo <= mem <= hi:
             out.append(f"{j['name']}: shape vcpus={info.get('vcpus')} mem_kb={mem}, want {want_cpu} vCPU in {lo}-{hi} kB")
-    if variant == "lfl":
+    if variant.startswith("lfl"):
         for lane, t in lanes.items():
             if any(g < -2 for g in t["handoff_gaps"]):
                 out.append(f"{lane} lane ran more jobs at once than it has slots")

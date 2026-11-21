@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # run-lfl-next.sh <out dir>: runs one build: the next step of <out dir>/plan.txt that isn't done.
 # plan.txt lines: <platform> <project> <variant> <step>
-#   platform: bk-compute | hosted | gha     variant: lfl | uncapped
+#   platform: bk-compute | hosted | gha     variant: lfl | lfl-s4 (hosted only) | uncapped
 #
 # Results go to <out dir>/fleet-results.jsonl, one record per attempt. A step is done once it has an
 # attempt the collector didn't exclude. Excluded attempts (contended, invalid setup, Mac busy) stay in
 # the file and the step runs again under the label <step>-a<n>, up to 3 attempts. Failed builds are
 # not excluded: they count as the step's result.
-# A shakedown step that doesn't produce a valid build stops the driver (exit 2) for review.
+# A shakedown step whose build is excluded (invalid setup, contention) stops the driver (exit 2) for review.
 #
 # The triggered build is written to <out dir>/pending before waiting, so a build whose collection fails
 # is collected on the next call instead of being replaced.
@@ -33,6 +33,7 @@ pgrep -f "mac-load.sh $BENCH_MAC_LOAD" >/dev/null || nohup bash ./mac-load.sh "$
 slug_for() {  # <platform> <project> <variant>
   if [ "$1" = bk-compute ]; then echo "obi-bk-compute-$2-fleet"
   elif [ "$3" = lfl ]; then echo "obi-hosted-lfl-$2-fleet"
+  elif [ "$3" = lfl-s4 ]; then echo "obi-hosted-lfl-s4-$2-fleet"
   else echo "obi-hosted-$2-fleet"; fi
 }
 
@@ -80,10 +81,12 @@ for line in open(sys.argv[1]):
         continue
     plat, project, variant, step = f
     tries = [r for r in recs if (r["platform"], r["project"], r["variant"], r.get("step", r["label"])) == (names[plat], project, variant, step)]
-    if any(not r.get("excluded") for r in tries) and not (step == "shakedown" and not any(r["valid"] for r in tries)):
+    # A shakedown checks the setup: one that ran with the declared shapes is done even if jobs failed
+    # (a failure is a platform result); an excluded one stops the driver for review.
+    if any(not r.get("excluded") for r in tries):
         continue
     if tries and step == "shakedown":
-        print("STOP shakedown", plat, project, variant, "has no valid build:", tries[-1].get("excluded") or tries[-1]["failed_jobs"]); break
+        print("STOP shakedown", plat, project, variant, "excluded:", tries[-1].get("excluded")); break
     if len(tries) >= 3:
         print("STOP", plat, project, variant, step, "excluded 3 times"); break
     print(plat, project, variant, step, step if not tries else f"{step}-a{len(tries) + 1}"); break

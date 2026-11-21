@@ -29,6 +29,7 @@ ROWS = [
     ("bk-compute", "lfl", "bk-compute: 2 Medium + 1 Small VMs on one Mac"),
     ("github-actions", "lfl", "GitHub: 2 at once on 4x16 + 1 at a time on 4x16 restricted to 2 vCPU / ~4 GB"),
     ("buildkite-hosted", "lfl", "Buildkite hosted: 2 at once on 4x16 + 1 at a time on 2x4"),
+    ("buildkite-hosted", "lfl-s4", "Buildkite hosted fallback: same lanes, Small jobs on 4x16 (2x4 OOM-killed them)"),
     ("github-actions", "uncapped", "GitHub: one 4x16 runner per job"),
     ("buildkite-hosted", "uncapped", "Buildkite hosted: one 4x16 machine per job"),
 ]
@@ -44,7 +45,8 @@ def med_rng(vals, scale=60.0, fmt="{:.1f}"):
 
 def cost(r):
     if r["platform"] == "buildkite-hosted":
-        return sum((j["run_s"] or 0) / 60 * HOSTED_PER_VCPU_MIN * (2 if j["lane"] == "small" else 4) for j in r["jobs"])
+        small_vcpu = 4 if r["variant"] == "lfl-s4" else 2
+        return sum((j["run_s"] or 0) / 60 * HOSTED_PER_VCPU_MIN * (small_vcpu if j["lane"] == "small" else 4) for j in r["jobs"])
     if r["platform"] == "github-actions":
         return sum(math.ceil((j["run_s"] or 0) / 60) * GH_4CORE_ARM_PER_MIN for j in r["jobs"])
     return 0.0
@@ -73,7 +75,7 @@ def main():
             ok = [r for r in rs if r["valid"]]
             lane = lambda r, k: r["lanes"].get(k, {}).get("job_s_sum")
             split = (f" ({med_rng([lane(r, 'small') for r in ok])} / {med_rng([lane(r, 'medium') for r in ok])})"
-                     if variant == "lfl" else "")
+                     if variant.startswith("lfl") else "")
             gaps = [g for r in ok for l in r["lanes"].values() for g in l["handoff_gaps"]]
             gap = f"{statistics.median(gaps):.0f} / {max(gaps):.0f}" if gaps else "–"
             first = [min(d for l in r["lanes"].values() for d in l["start_delays"]) for r in ok]
