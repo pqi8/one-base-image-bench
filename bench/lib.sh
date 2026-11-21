@@ -55,6 +55,7 @@ machine_info() {
   echo "BENCH_INFO|page_size|$(getconf PAGESIZE)"
   echo "BENCH_INFO|vcpus|$(nproc)"
   echo "BENCH_INFO|mem_kb|$(awk '/MemTotal/ {print $2}' /proc/meminfo)"
+  echo "BENCH_INFO|swap_kb|$(awk '/SwapTotal/ {print $2}' /proc/meminfo)"
   echo "BENCH_INFO|arch|$(uname -m)"
   echo "BENCH_INFO|os|$(. /etc/os-release && echo "$PRETTY_NAME")"
   echo "BENCH_INFO|cache_bytes_at_start|$(du -sb "$BENCH_CACHE_DIR" 2>/dev/null | cut -f1)"
