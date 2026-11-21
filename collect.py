@@ -50,7 +50,7 @@ def collect_gha(run_id, label):
     run = json.loads(gh("api", f"repos/{repo}/actions/runs/{run_id}"))
     jobs = json.loads(gh("api", f"repos/{repo}/actions/runs/{run_id}/jobs"))["jobs"]
     job = jobs[0]
-    log = gh("api", f"repos/{repo}/actions/jobs/{job['id']}/logs")
+    log = gh("run", "view", "--repo", repo, "--log", "--job", str(job["id"]))
     sections, info = parse_log(log)
     return {
         "platform": "github-actions",
