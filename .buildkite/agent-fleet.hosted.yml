@@ -1,0 +1,29 @@
+# Fleet test: buildkite/agent's CI split into its upstream jobs (lint, 2 test shards,
+# 3 race shards, 5 binaries).
+# Every job gets its own hosted Linux arm64 machine (4 vCPU, 16 GB).
+env:
+  BENCH_PLATFORM: buildkite-hosted
+
+steps:
+  - label: ":go: Lint"
+    command: bash bench/agent-fleet.sh lint
+    agents: { queue: hosted-linux-arm64 }
+  - label: ":linux: Tests %n"
+    parallelism: 2
+    command: bash bench/agent-fleet.sh test $$BUILDKITE_PARALLEL_JOB $$BUILDKITE_PARALLEL_JOB_COUNT
+    agents: { queue: hosted-linux-arm64 }
+  - label: ":satellite: Races %n"
+    parallelism: 3
+    # The race detector needs several times the memory of a plain test run (upstream asks for medium).
+    command: bash bench/agent-fleet.sh race $$BUILDKITE_PARALLEL_JOB $$BUILDKITE_PARALLEL_JOB_COUNT
+    agents: { queue: hosted-linux-arm64 }
+  - label: ":package: Build {{matrix.os}}/{{matrix.arch}}"
+    command: bash bench/agent-fleet.sh build {{matrix.os}} {{matrix.arch}}
+    agents: { queue: hosted-linux-arm64 }
+    matrix:
+      setup:
+        os: [linux, darwin, windows]
+        arch: [amd64, arm64]
+      adjustments:
+        - with: { os: windows, arch: arm64 }
+          skip: true

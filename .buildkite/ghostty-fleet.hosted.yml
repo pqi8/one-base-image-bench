@@ -1,0 +1,10 @@
+# Fleet test: ghostty's build-libghostty-vt matrix, one job per target.
+# Every job gets its own hosted Linux arm64 machine (4 vCPU, 16 GB).
+env:
+  BENCH_PLATFORM: buildkite-hosted
+
+steps:
+  - label: ":zap: libghostty-vt {{matrix}}"
+    command: bash bench/ghostty-target.sh {{matrix}}
+    agents: { queue: hosted-linux-arm64 }
+    matrix: [aarch64-macos, x86_64-macos, aarch64-linux, x86_64-linux, x86_64-linux-musl, aarch64-freebsd, x86_64-freebsd, x86_64-windows-gnu, aarch64-windows-gnu]

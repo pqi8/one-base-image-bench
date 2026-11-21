@@ -1,0 +1,28 @@
+# Fleet test: ghostty's build-libghostty-vt matrix, one job per target. Every job gets its own ubuntu-24.04-arm runner (4 vCPU, 16 GB).
+name: ghostty-fleet
+
+on: workflow_dispatch
+
+jobs:
+  bench:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: aarch64-macos, args: aarch64-macos }
+          - { name: x86_64-macos, args: x86_64-macos }
+          - { name: aarch64-linux, args: aarch64-linux }
+          - { name: x86_64-linux, args: x86_64-linux }
+          - { name: x86_64-linux-musl, args: x86_64-linux-musl }
+          - { name: aarch64-freebsd, args: aarch64-freebsd }
+          - { name: x86_64-freebsd, args: x86_64-freebsd }
+          - { name: x86_64-windows-gnu, args: x86_64-windows-gnu }
+          - { name: aarch64-windows-gnu, args: aarch64-windows-gnu }
+    env:
+      BENCH_PLATFORM: github-actions
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash bench/ghostty-target.sh ${{ matrix.args }}

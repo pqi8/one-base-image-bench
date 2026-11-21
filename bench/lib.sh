@@ -97,7 +97,7 @@ finish() {
   echo "BENCH_INFO|cache_bytes_at_end|$($SUDO du -sb "$BENCH_CACHE_DIR" 2>/dev/null | cut -f1)" | tee -a "$BENCH_RESULTS"
   # Build meta-data carries the results to readers with only read_builds (no log access).
   if [ -n "${BUILDKITE_JOB_ID:-}" ]; then
-    buildkite-agent meta-data set bench-results < "$BENCH_RESULTS" || true
+    buildkite-agent meta-data set "${BENCH_META_KEY:-bench-results}" < "$BENCH_RESULTS" || true
   fi
   if [ -n "$BENCH_FAILED" ]; then
     echo "Failed sections:$BENCH_FAILED"
