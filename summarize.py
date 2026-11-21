@@ -42,6 +42,15 @@ def main():
         if r in failed:
             continue
         mode = r["label"].split("-")[0]
+        # A warm run whose cache was empty at start ran cold; it gets its own row.
+        # bk-compute restores its cache inside the script, after the size is recorded, so
+        # there a warm run counts when its "cache restore" section passed.
+        if r["platform"] == "bk-compute":
+            hit = any(s["name"] == "cache restore" and s["status"] == 0 for s in r["sections"])
+        else:
+            hit = r["info"].get("cache_bytes_at_start") not in ("0", "", None)
+        if mode == "warm" and not hit:
+            mode = "warm-miss"
         cells[(r["project"], r["platform"], mode)].append(r)
 
     print("| Project | Platform | Cold job time | Warm job time | Wait to start (median) |")
