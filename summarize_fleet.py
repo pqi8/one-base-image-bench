@@ -25,7 +25,7 @@ def rng(vals, scale=60, unit="min"):
 
 def main():
     rows = [json.loads(l) for l in open(os.path.join(HERE, "fleet-results.jsonl")) if l.strip()]
-    rows = [r for r in rows if "invalid" not in r["label"]]
+    rows = [r for r in rows if "invalid" not in r["label"] and "contended" not in r["label"]]
     cells = defaultdict(list)
     for r in rows:
         cells[(r["project"], r["platform"], r["variant"])].append(r)
