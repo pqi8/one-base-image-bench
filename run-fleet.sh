@@ -8,7 +8,7 @@ platform="$1" runs="$2"; shift 2
 export BUILDKITE_API_TOKEN="${BUILDKITE_API_TOKEN:-$(cat ~/.config/bk-bench/pqi-eval-plan-token)}"
 
 for project in "$@"; do
-  for i in $(seq "$runs"); do
+  for i in $(seq "${START:-1}" $(( ${START:-1} + runs - 1 ))); do
     case "$platform" in
       bk-compute|hosted|hosted-capped)
         slug="obi-$platform-$project-fleet"
