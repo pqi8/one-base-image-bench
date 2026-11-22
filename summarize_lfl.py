@@ -108,9 +108,13 @@ def main():
         if bad:
             print(f"bk-compute runner log: {sum(bad)} drain / no-heartbeat lines across {len(bad)} builds.\n")
         hosted = [cost(r) for r in cells[(project, "buildkite-hosted", "lfl")] if r["valid"]]
+        basis = "hosted like-for-like"
+        if not hosted:  # no valid 2x4 build: use the fallback row (Small jobs on 4x16)
+            hosted = [cost(r) for r in cells[(project, "buildkite-hosted", "lfl-s4")] if r["valid"]]
+            basis = "hosted fallback (Small jobs on 4x16)"
         if hosted:
             per_day = MAC_PRICE / (3 * 365)
-            print(f"Break-even: at a median ${statistics.median(hosted):.2f} per hosted like-for-like build, "
+            print(f"Break-even: at a median ${statistics.median(hosted):.2f} per {basis} build, "
                   f"a ${MAC_PRICE} Mac written off over 3 years (${per_day:.2f} a day) matches hosted spend at "
                   f"{per_day / statistics.median(hosted):.0f} builds a day.\n")
     hosted_all = sum(cost(r) for r in rows if r["platform"] == "buildkite-hosted")
